@@ -1,0 +1,5 @@
+name: SlimeBucket
+version: 1.0
+main: jamSlimeBucket.Main
+description: Recreation of the Quark Slime Bucket as a server-side plugin for 1.13.1
+author: Jamdoggy

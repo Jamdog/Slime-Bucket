@@ -1,0 +1,8 @@
+/**
+ * 
+ */
+/**
+ * @author stefa
+ *
+ */
+package jamSlimeBucket;
