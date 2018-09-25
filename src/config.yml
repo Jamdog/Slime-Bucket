@@ -5,4 +5,7 @@
 # Plugin written by Jamdoggy
 # -----------------------------------------------------------
 # 
-# This plugin currently has no configuration options
+# DebugMessages: Put debug messages in log (false=off, true=on)
+DebugMessages: false
+# LogMessages: Put standard messages in log when player detects a slime chunk, or catches/releases a slime. (false=off, true=on)
+LogMessages: true

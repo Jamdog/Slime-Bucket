@@ -3,6 +3,8 @@
  * Version 1.0
  * @Author: Jamdoggy
  * @Description: A recreation of the Slime in a Bucket found in the Quark Forge Mod
+ *               Written as a server-side mod for Spigot
+ *               NOTE: Requires server-enforced resource pack
  */
 
 package jamSlimeBucket;
@@ -13,6 +15,7 @@ import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
@@ -32,8 +35,9 @@ import net.md_5.bungee.api.ChatColor;
 
 public class SlimeBucket implements Listener {
 
-	public static Item slime_bucket;
-	boolean debug=true;
+	public static Item slime_bucket;      // Slime Bucket Item
+	boolean debug=false;                  // Flag to show/hide debug information in logs  (Default: False)
+	boolean logs=true;                    // Flag to show/hide normal log information     (Default: True)
 
 	enum EnumHand {
 		   MAIN_HAND, OFF_HAND, NO_HAND
@@ -44,19 +48,24 @@ public class SlimeBucket implements Listener {
 	 */
 	public SlimeBucket() {
     	System.out.println("[SlimeBucket] Initialising plugin.");
+    	if (Main.instance.getConfig().contains("DebugMessages")) debug = Main.instance.getConfig().getBoolean("DebugMessages");
+    	if (Main.instance.getConfig().contains("LogMessages"))   logs  = Main.instance.getConfig().getBoolean("LogMessages");
 
 	}
 	
 	/*
 	 * Handler: Catch a slime in a bucket
+	 * Variables:
+	 *    @event : PlayerInteractEntityEvent - When player clicks on an Entity 
+	 * Returns:
+	 *    Nothing
 	 */
 	@EventHandler
 	public void entityInteract(PlayerInteractEntityEvent event) {
 		
-    	if (debug == true) System.out.println("[SlimeBucket] Entity Interact detected.");
 		// Did the player right-click on a slime?
 		if (!event.isCancelled() && event.getRightClicked() != null && event.getRightClicked() instanceof Slime) {
-			if (debug == true) System.out.println("[SlimeBucket] Detected right-click on slime.");
+	    	if (debug == true) System.out.println("[SlimeBucket] Entity Interact (right-click on slime) detected.");
 			// Is it a small slime?
 			Slime slimeEntity = (Slime) event.getRightClicked();
 			if (slimeEntity.getSize() == 1) {
@@ -78,12 +87,12 @@ public class SlimeBucket implements Listener {
 					ItemStack bucketSlime = createSlimeBucket(); 
 
 					// How many buckets are in the hand?
-					if (stack.getAmount() == 1) {  // One bucket - straight swap
+					if (stack.getAmount() == 1) {          // One bucket - straight swap
 						if (hand == EnumHand.MAIN_HAND)
 							p.getInventory().setItemInMainHand(bucketSlime);
 						else if (hand == EnumHand.OFF_HAND)
 							p.getInventory().setItemInOffHand(bucketSlime);
-					} else {  // More than one bucket, reduce stack and try to drop in inventory
+					} else {                               // More than one bucket, reduce stack and try to drop in inventory
 						// Reduce the stack of buckets by 1
 						int b = stack.getAmount();
 						stack.setAmount(b-1);
@@ -94,6 +103,7 @@ public class SlimeBucket implements Listener {
 							p.getWorld().dropItemNaturally(p.getLocation(), bucketSlime);
 						}
 					}
+					if (logs == true) System.out.println("[SlimeBucket] " + p.getDisplayName() + " caught a baby slime in a bucket.");
 
 					// Remove the slime from the game
 					slimeEntity.remove();
@@ -110,6 +120,10 @@ public class SlimeBucket implements Listener {
 
 	/*
 	 * Handler: Release the slime from the bucket
+	 * Variables:
+	 *    @event : PlayerInteractEvent - When player clicks on a block 
+	 * Returns:
+	 *    Nothing
 	 */
 	@EventHandler
 	public void playerInteract(PlayerInteractEvent event) {
@@ -118,10 +132,13 @@ public class SlimeBucket implements Listener {
 		if (!event.isCancelled() && event.getAction() == Action.RIGHT_CLICK_BLOCK) {
 			// With a slime in a bucket...?
 			Player p = event.getPlayer();
-			Block b = event.getClickedBlock();
+			
 			EnumHand h = hasSlimeBucket(p);
 			
 			if (h != EnumHand.NO_HAND) {
+				Block b = event.getClickedBlock();
+				BlockFace f = event.getBlockFace();
+
 				if (debug == true) System.out.println("[SlimeBucket] Player Interact detected.");
 				// Player has right-clicked a block with a slime-in-a-bucket
 				// Remove the Slime-in-a-bucket
@@ -141,9 +158,16 @@ public class SlimeBucket implements Listener {
 				}
 				
 				// and put a slime on the floor
+				double blockOffset = 0.5;
 				Location spawnLoc = b.getLocation();
+
+				// Add block face direction, then half a block for block centre
+				spawnLoc.add((double)f.getModX()+blockOffset, (double)f.getModY(), ((double)f.getModZ())+blockOffset); // Move to the side on which the block was clicked
+
+				// TODO: Spawn at sky limit, change size, then teleport to block.  This is to avoid a brief moment of wrong-sized slime
 				Slime s = (Slime) p.getWorld().spawnEntity(spawnLoc, EntityType.SLIME);
 				s.setSize(1);
+				if (logs == true) System.out.println("[SlimeBucket] " + p.getDisplayName() + " released a baby slime.");
 				
 				// We did stuff, cancel the right-click event
 				event.setCancelled(true);
@@ -153,6 +177,10 @@ public class SlimeBucket implements Listener {
 
 	/*
 	 * Has the player moved into a new chunk.  If so, check if the bucket needs updating
+	 * Variables:
+	 *    @event : PlayerMoveEvent - When player moves 
+	 * Returns:
+	 *    Nothing
 	 */
 	@EventHandler
 	public void onPlayerMove(PlayerMoveEvent event) {
@@ -162,35 +190,39 @@ public class SlimeBucket implements Listener {
 
 	        if (chunkFrom.getX() != chunkTo.getX() || chunkFrom.getZ() != chunkTo.getZ()) {
 	            // if chunk has changed
-	            updateSlimeBuckets(event.getPlayer()); // update any "buckets" in the players inventory
+	            updateSlimeBuckets(event); // update any "buckets" in the players inventory
 	        }
 	    }
 	}
 	
 	/*
-	 * Go through player inventory, and if they have a slime-in-a-bucket then check if it needs updating
+	 * Called when player moves to a new chunk, to check if the slime bucket animation needs to change
+	 * Variables:
+	 *    @event : PlayerMoveEvent - When player moves to a new chunk 
+	 * Returns:
+	 *    Nothing
 	 */
-	public void updateSlimeBuckets(Player p) {
+	public void updateSlimeBuckets(PlayerMoveEvent e) {
+		Player p = e.getPlayer();
 		if (p != null) {
+			// Does the player have a golden hoe in their inventory?
 			PlayerInventory inv = p.getInventory();
 			for (ItemStack item : inv.getContents()) {
 				if ((item != null) && (item.getType() == Material.GOLDEN_HOE)) {
 					//  Check that this gold hoe is a slime-in-a-bucket
 					if (((item.getDurability() == (short) 1) || (item.getDurability() == (short) 2)) && (item.getItemMeta().isUnbreakable() == true)) {
-						boolean slime = p.getLocation().getChunk().isSlimeChunk();
-						short meta = item.getDurability();
-						short newMeta = (short) (slime ? 2 : 1);
-						
+						boolean slime = e.getTo().getChunk().isSlimeChunk();    // Has player moved into a slime chunk?
+						short meta = item.getDurability();                      // Current durability value
+						short newMeta = (short) (slime ? 2 : 1);                // New durability value based on whether in a slime chunk
 
 						if (debug == true) {
 							System.out.println("[SlimeBucket] Player " + (p.getName()) + " moved to a new chunk with a slime bucket.");
 							System.out.println("[SlimeBucket] Slime chunk: " + (slime ? "True" : "False"));
-							System.out.println("[SlimeBucket] Old Value: " + meta);
-							System.out.println("[SlimeBucket] New Value: " + newMeta);
 						}
 						if(meta != newMeta) {
 							item.setDurability((short) newMeta);
 							if (debug == true) System.out.println("[SlimeBucket] Damage value updated!");
+							if ((logs == true) && (slime == true)) System.out.println("[SlimeBucket] " + p.getDisplayName() + " found a Slime Chunk!");
 						}
 					}
 				}
