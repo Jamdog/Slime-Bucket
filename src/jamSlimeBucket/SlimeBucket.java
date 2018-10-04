@@ -36,7 +36,7 @@ import net.md_5.bungee.api.ChatColor;
 public class SlimeBucket implements Listener {
 
 	public static Item slime_bucket;      // Slime Bucket Item
-	boolean debug=false;                  // Flag to show/hide debug information in logs  (Default: False)
+	boolean debug=true;                  // Flag to show/hide debug information in logs  (Default: False)
 	boolean logs=true;                    // Flag to show/hide normal log information     (Default: True)
 
 	enum EnumHand {
@@ -64,7 +64,7 @@ public class SlimeBucket implements Listener {
 	public void entityInteract(PlayerInteractEntityEvent event) {
 		
 		// Did the player right-click on a slime?
-		if (!event.isCancelled() && event.getRightClicked() != null && event.getRightClicked() instanceof Slime) {
+		if ((event != null) &&!event.isCancelled() && event.getRightClicked() != null && event.getRightClicked() instanceof Slime) {
 	    	if (debug == true) System.out.println("[SlimeBucket] Entity Interact (right-click on slime) detected.");
 			// Is it a small slime?
 			Slime slimeEntity = (Slime) event.getRightClicked();
@@ -83,8 +83,16 @@ public class SlimeBucket implements Listener {
 				if(stack != null && stack.getType() == Material.BUCKET) {
 					
 					if (debug == true) System.out.println("[SlimeBucket] Holding bucket in ." + ((hand == EnumHand.MAIN_HAND) ? "Main " : "Off-") + "Hand.");
+
+					// Grab the name of the slime, if it's been renamed
+					String slimeCName = null;
+
+					if (slimeEntity.getCustomName() != null) {
+						slimeCName = slimeEntity.getCustomName();
+					}
+
 					// Finally, time to swap the bucket for the Slime in a Bucket
-					ItemStack bucketSlime = createSlimeBucket(); 
+					ItemStack bucketSlime = createSlimeBucket(slimeCName); 
 
 					// How many buckets are in the hand?
 					if (stack.getAmount() == 1) {          // One bucket - straight swap
@@ -129,48 +137,57 @@ public class SlimeBucket implements Listener {
 	public void playerInteract(PlayerInteractEvent event) {
 		
 		// Did the player right-click on a block?
-		if (!event.isCancelled() && event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+		if ((event != null) &&!event.isCancelled() && event.getAction() == Action.RIGHT_CLICK_BLOCK) {
 			// With a slime in a bucket...?
 			Player p = event.getPlayer();
+			if (p != null) {
+				EnumHand h = hasSlimeBucket(p);
 			
-			EnumHand h = hasSlimeBucket(p);
-			
-			if (h != EnumHand.NO_HAND) {
-				Block b = event.getClickedBlock();
-				BlockFace f = event.getBlockFace();
+				if (h != EnumHand.NO_HAND) {
+					Block b = event.getClickedBlock();
+					BlockFace f = event.getBlockFace();
+					String customSName = null;
+					ItemStack stack;
 
-				if (debug == true) System.out.println("[SlimeBucket] Player Interact detected.");
-				// Player has right-clicked a block with a slime-in-a-bucket
-				// Remove the Slime-in-a-bucket
-				if (h == EnumHand.MAIN_HAND) {
-					ItemStack stack = p.getInventory().getItemInMainHand();
+					if (debug == true) System.out.println("[SlimeBucket] Player Interact detected.");
+					// Player has right-clicked a block with a slime-in-a-bucket
+					// Remove the Slime-in-a-bucket
+					stack = p.getInventory().getItemInMainHand();    // Assume Main Hand
+					if (h == EnumHand.OFF_HAND) {
+						stack = p.getInventory().getItemInOffHand();
+					}
+				
+					if (!stack.getItemMeta().getDisplayName().equals("&a&lSlime in a Bucket")) {
+						int nLen = stack.getItemMeta().getDisplayName().length();
+						int nEnd = nLen - 12;
+						if (debug == true) System.out.println("[SlimeBucket] Custom Name: '" + stack.getItemMeta().getDisplayName() + "' (length: " + (nLen) + ")");
+						customSName = stack.getItemMeta().getDisplayName().substring(4, nEnd);
+					}
 					stack.setAmount(stack.getAmount()-1);
-				} else if (h == EnumHand.OFF_HAND) {
-					ItemStack stack = p.getInventory().getItemInOffHand();
-					stack.setAmount(stack.getAmount()-1);
-				}
-				
-				//  and give player a bucket
-				ItemStack bucketItem = new ItemStack(Material.BUCKET);
-				if (p.getInventory().addItem(bucketItem) == null) {
-					// If it failed, drop one on the floor
-					p.getWorld().dropItemNaturally(p.getLocation(), bucketItem);
-				}
-				
-				// and put a slime on the floor
-				double blockOffset = 0.5;
-				Location spawnLoc = b.getLocation();
 
-				// Add block face direction, then half a block for block centre
-				spawnLoc.add((double)f.getModX()+blockOffset, (double)f.getModY(), ((double)f.getModZ())+blockOffset); // Move to the side on which the block was clicked
-
-				// TODO: Spawn at sky limit, change size, then teleport to block.  This is to avoid a brief moment of wrong-sized slime
-				Slime s = (Slime) p.getWorld().spawnEntity(spawnLoc, EntityType.SLIME);
-				s.setSize(1);
-				if (logs == true) System.out.println("[SlimeBucket] " + p.getDisplayName() + " released a baby slime.");
+					//  and give player a bucket
+					ItemStack bucketItem = new ItemStack(Material.BUCKET);
+					if (p.getInventory().addItem(bucketItem) == null) {
+						// If it failed, drop one on the floor
+						p.getWorld().dropItemNaturally(p.getLocation(), bucketItem);
+					}
 				
-				// We did stuff, cancel the right-click event
-				event.setCancelled(true);
+					// and put a slime on the floor
+					double blockOffset = 0.5;
+					Location spawnLoc = b.getLocation();
+
+					// Add block face direction, then half a block for block centre
+					spawnLoc.add((double)f.getModX()+blockOffset, (double)f.getModY(), ((double)f.getModZ())+blockOffset); // Move to the side on which the block was clicked
+
+					// TODO: Spawn at sky limit, change size, then teleport to block.  This is to avoid a brief moment of wrong-sized slime
+					Slime s = (Slime) p.getWorld().spawnEntity(spawnLoc, EntityType.SLIME);
+					s.setSize(1);
+					if (customSName != null) s.setCustomName(customSName);
+					if (logs == true) System.out.println("[SlimeBucket] " + p.getDisplayName() + " released a baby slime.");
+				
+					// We did stuff, cancel the right-click event
+					event.setCancelled(true);
+				}
 			}
 		}
 	}
@@ -259,12 +276,16 @@ public class SlimeBucket implements Listener {
 	/*
 	 * Create a new slime-in-a-bucket
 	 */
-	private ItemStack createSlimeBucket() {
+	private ItemStack createSlimeBucket(String sName) {
 		// Create an Unbreakable Golden Hoe, with damage 1 and Hide Flags 
 		ItemStack bucketSlime = new ItemStack(Material.GOLDEN_HOE);
 		ItemMeta sibMeta = bucketSlime.getItemMeta();
 
-		sibMeta.setDisplayName(ChatColor.translateAlternateColorCodes('&', "&a&lSlime in a Bucket"));
+		if (sName == null) {
+			sibMeta.setDisplayName(ChatColor.translateAlternateColorCodes('&', "&a&lSlime in a Bucket"));
+		} else {
+			sibMeta.setDisplayName(ChatColor.translateAlternateColorCodes('&', "&a&l" + sName + " in a Bucket"));
+		}
 		
 		ArrayList<String> lore = new ArrayList<String>();
         lore.add("This slime gets excited when in a slime chunk.");
