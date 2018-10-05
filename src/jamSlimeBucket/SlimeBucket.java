@@ -16,6 +16,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Slime;
@@ -179,20 +180,25 @@ public class SlimeBucket implements Listener {
 					// Add block face direction, then half a block for block centre
 					spawnLoc.add((double)f.getModX()+blockOffset, (double)f.getModY(), ((double)f.getModZ())+blockOffset); // Move to the side on which the block was clicked
 
-<<<<<<< HEAD
-					// TODO: Spawn at sky limit, change size, then teleport to block.  This is to avoid a brief moment of wrong-sized slime
-					Slime s = (Slime) p.getWorld().spawnEntity(spawnLoc, EntityType.SLIME);
-					s.setSize(1);
-					if (customSName != null) s.setCustomName(customSName);
-					if (logs == true) System.out.println("[SlimeBucket] " + p.getDisplayName() + " released a baby slime.");
-=======
-				p.getWorld().spawn(spawnLoc, Slime, new Consumer<Slime>() {
-					public void accept(Slime slime) {
-						slime.setSize(1); // make smallest slime before appearing
+					if (customSName != null) {
+						// Spawn a size 1 slime with a custom name
+						final String sn = customSName;
+						p.getWorld().spawn(spawnLoc, Slime.class, new Consumer<Slime>() {
+							public void accept(Slime slime) {
+								slime.setSize(1); // make smallest slime before appearing
+								slime.setCustomName(sn);
+							}
+						});
+					} else {
+						// Spawn a normal size 1 slime
+						p.getWorld().spawn(spawnLoc, Slime.class, new Consumer<Slime>() {
+							public void accept(Slime slime) {
+								slime.setSize(1); // make smallest slime before appearing
+							}
+						});
 					}
-				});
-				if (logs == true) System.out.println("[SlimeBucket] " + p.getDisplayName() + " released a baby slime.");
->>>>>>> eb69cc2e6f99896f73af94eec5403f249a91282f
+					if (logs == true) System.out.println("[SlimeBucket] " + p.getDisplayName() + " released a baby slime.");
+
 				
 					// We did stuff, cancel the right-click event
 					event.setCancelled(true);
