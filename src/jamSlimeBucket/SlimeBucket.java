@@ -16,7 +16,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Slime;
@@ -29,6 +28,7 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.util.Consumer;
 
@@ -240,19 +240,21 @@ public class SlimeBucket implements Listener {
 			// Does the player have a golden hoe in their inventory?
 			PlayerInventory inv = p.getInventory();
 			for (ItemStack item : inv.getContents()) {
-				if ((item != null) && (item.getType() == Material.GOLDEN_HOE)) {
-					//  Check that this gold hoe is a slime-in-a-bucket
-					if (((item.getDurability() == (short) 1) || (item.getDurability() == (short) 2)) && (item.getItemMeta().isUnbreakable() == true)) {
-						boolean slime = e.getTo().getChunk().isSlimeChunk();    // Has player moved into a slime chunk?
-						short meta = item.getDurability();                      // Current durability value
-						short newMeta = (short) (slime ? 2 : 1);                // New durability value based on whether in a slime chunk
+				if (item != null) {
+					//  Is this a slime-in-a-bucket?
+					if (isSlimeBucket(item)) {
+						boolean slime = e.getTo().getChunk().isSlimeChunk();                  // Has player moved into a slime chunk?
+						boolean gareth = isGareth(item);
+				    	int meta = ((Damageable) item.getItemMeta()).getDamage();             // get damage value
+						int newMeta = (gareth ? (slime ? 4 : 3) : (slime ? 2 : 1));           // New durability value based on whether in a slime chunk
 
 						if (debug == true) {
 							System.out.println("[SlimeBucket] Player " + (p.getName()) + " moved to a new chunk with a slime bucket.");
 							System.out.println("[SlimeBucket] Slime chunk: " + (slime ? "True" : "False"));
 						}
 						if(meta != newMeta) {
-							item.setDurability((short) newMeta);
+							((Damageable) item.getItemMeta()).setDamage(newMeta);             // cast to Damageable, then set damage							
+							
 							if (debug == true) System.out.println("[SlimeBucket] Damage value updated!");
 							if ((logs == true) && (slime == true)) System.out.println("[SlimeBucket] " + p.getDisplayName() + " found a Slime Chunk!");
 						}
@@ -266,10 +268,11 @@ public class SlimeBucket implements Listener {
 	 * Does the player hold a slime bucket in their main hand (or off hand) - return hand or NO_HAND
 	 */
 	private EnumHand hasSlimeBucket(Player p) {
-		// Does the player hold an empty bucket?
+		// Assume Main hand, and get item there
 		EnumHand hand = EnumHand.MAIN_HAND;
 		ItemStack stack = p.getInventory().getItemInMainHand();
 		
+		// If main hand is empty, assume off-hand and grab that item instead
 		if(stack == null || stack.getType() != Material.GOLDEN_HOE) {
 			stack = p.getInventory().getItemInOffHand();
 			hand = EnumHand.OFF_HAND;
@@ -278,14 +281,43 @@ public class SlimeBucket implements Listener {
 		if(stack != null && stack.getType() == Material.GOLDEN_HOE) {
 			// Player has a golden hoe, but it is the right type...?
 			ItemMeta stackMeta = stack.getItemMeta();
+	    	int d = ((Damageable) stackMeta).getDamage(); // get damage value
 			
-			if (((stack.getDurability() != (short) 1) && (stack.getDurability() != (short) 2)) || (stackMeta.isUnbreakable() != true)) {
-				hand = EnumHand.NO_HAND;
+			if (((d != 1) && (d != 2) && (d != 3) && (d != 4)) || (stackMeta.isUnbreakable() != true)) {
+				hand = EnumHand.NO_HAND;  // This item isn't a valid slime-in-a-bucket
 			}
 		} else {
-			hand = EnumHand.NO_HAND;
+			hand = EnumHand.NO_HAND;      // Nothing in main hand or off-hand
 		}
 		return hand;
+	}
+
+    /*
+     * Is this a Slime in a Bucket? (of any type)
+     */
+    private boolean isSlimeBucket(ItemStack item) {
+    	boolean bRet = false;
+    	int d = ((Damageable) item.getItemMeta()).getDamage(); // get damage value
+    	if ( (item.getType() == Material.GOLDEN_HOE) && 
+    		 ((d == 1) || (d == 2) || (d == 3) || (d == 4)) && 
+			 (item.getItemMeta().isUnbreakable() == true)) {
+			bRet = true;
+		}
+		return bRet;
+    }
+
+    /*
+     * Is this a Gareth-type Slime in a Bucket?
+     */
+	private boolean isGareth(ItemStack item) {
+    	boolean bRet = false;
+    	int d = ((Damageable) item.getItemMeta()).getDamage(); // get damage value
+    	if ( (item.getType() == Material.GOLDEN_HOE) && 
+    		 ((d == 3) || (d == 4)) && 
+			 (item.getItemMeta().isUnbreakable() == true)) {
+			bRet = true;
+		}
+		return bRet;	
 	}
 	
 	/*
@@ -295,15 +327,22 @@ public class SlimeBucket implements Listener {
 		// Create an Unbreakable Golden Hoe, with damage 1 and Hide Flags 
 		ItemStack bucketSlime = new ItemStack(Material.GOLDEN_HOE);
 		ItemMeta sibMeta = bucketSlime.getItemMeta();
+		ArrayList<String> lore = new ArrayList<String>();
+		int bucketType = 1;  // Assume a standard slime-in-a-bucket
 
 		if (sName == null) {
 			sibMeta.setDisplayName(ChatColor.translateAlternateColorCodes('&', "&a&lSlime in a Bucket"));
+	        lore.add("This slime gets excited when in a slime chunk.");
 		} else {
 			sibMeta.setDisplayName(ChatColor.translateAlternateColorCodes('&', "&a&l" + sName + " in a Bucket"));
+			if (sName.equalsIgnoreCase("gareth") || sName.equalsIgnoreCase("garethpw")) {
+				bucketType = 3;
+		        lore.add("Gareth gets excited when in a slime chunk.");
+			} else {
+		        lore.add("This slime gets excited when in a slime chunk.");				
+			}
 		}
 		
-		ArrayList<String> lore = new ArrayList<String>();
-        lore.add("This slime gets excited when in a slime chunk.");
         sibMeta.setLore(lore);
         
         sibMeta.setUnbreakable(true);
@@ -311,7 +350,7 @@ public class SlimeBucket implements Listener {
         sibMeta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
         
         bucketSlime.setItemMeta(sibMeta);
-		bucketSlime.setDurability((short) 1);
+		((Damageable) bucketSlime.getItemMeta()).setDamage(bucketType); // cast to Damageable, then set damage
 		
 		return bucketSlime;
 	}
