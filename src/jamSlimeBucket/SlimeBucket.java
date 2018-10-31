@@ -36,9 +36,9 @@ import net.md_5.bungee.api.ChatColor;
 
 public class SlimeBucket implements Listener {
 
-	public static Item slime_bucket;      // Slime Bucket Item
+	public static Item slime_bucket;     // Slime Bucket Item
 	boolean debug=true;                  // Flag to show/hide debug information in logs  (Default: False)
-	boolean logs=true;                    // Flag to show/hide normal log information     (Default: True)
+	boolean logs=true;                   // Flag to show/hide normal log information     (Default: True)
 
 	enum EnumHand {
 		   MAIN_HAND, OFF_HAND, NO_HAND
@@ -245,7 +245,7 @@ public class SlimeBucket implements Listener {
 					if (isSlimeBucket(item)) {
 						boolean slime = e.getTo().getChunk().isSlimeChunk();                  // Has player moved into a slime chunk?
 						boolean gareth = isGareth(item);
-				    	int meta = ((Damageable) item.getItemMeta()).getDamage();             // get damage value
+				    	int meta = getDamageValue(item);                                      // get damage value
 						int newMeta = (gareth ? (slime ? 4 : 3) : (slime ? 2 : 1));           // New durability value based on whether in a slime chunk
 
 						if (debug == true) {
@@ -253,7 +253,9 @@ public class SlimeBucket implements Listener {
 							System.out.println("[SlimeBucket] Slime chunk: " + (slime ? "True" : "False"));
 						}
 						if(meta != newMeta) {
-							((Damageable) item.getItemMeta()).setDamage(newMeta);             // cast to Damageable, then set damage							
+							ItemMeta itMeta = item.getItemMeta();
+							((Damageable) itMeta).setDamage(newMeta);             // cast to Damageable, then set damage
+							item.setItemMeta(itMeta);
 							
 							if (debug == true) System.out.println("[SlimeBucket] Damage value updated!");
 							if ((logs == true) && (slime == true)) System.out.println("[SlimeBucket] " + p.getDisplayName() + " found a Slime Chunk!");
@@ -281,7 +283,7 @@ public class SlimeBucket implements Listener {
 		if(stack != null && stack.getType() == Material.GOLDEN_HOE) {
 			// Player has a golden hoe, but it is the right type...?
 			ItemMeta stackMeta = stack.getItemMeta();
-	    	int d = ((Damageable) stackMeta).getDamage(); // get damage value
+	    	int d = getDamageValue(stack); // get damage value
 			
 			if (((d != 1) && (d != 2) && (d != 3) && (d != 4)) || (stackMeta.isUnbreakable() != true)) {
 				hand = EnumHand.NO_HAND;  // This item isn't a valid slime-in-a-bucket
@@ -297,7 +299,7 @@ public class SlimeBucket implements Listener {
      */
     private boolean isSlimeBucket(ItemStack item) {
     	boolean bRet = false;
-    	int d = ((Damageable) item.getItemMeta()).getDamage(); // get damage value
+    	int d = getDamageValue(item); // get damage value
     	if ( (item.getType() == Material.GOLDEN_HOE) && 
     		 ((d == 1) || (d == 2) || (d == 3) || (d == 4)) && 
 			 (item.getItemMeta().isUnbreakable() == true)) {
@@ -311,7 +313,7 @@ public class SlimeBucket implements Listener {
      */
 	private boolean isGareth(ItemStack item) {
     	boolean bRet = false;
-    	int d = ((Damageable) item.getItemMeta()).getDamage(); // get damage value
+    	int d = getDamageValue(item); // get damage value
     	if ( (item.getType() == Material.GOLDEN_HOE) && 
     		 ((d == 3) || (d == 4)) && 
 			 (item.getItemMeta().isUnbreakable() == true)) {
@@ -349,9 +351,22 @@ public class SlimeBucket implements Listener {
         sibMeta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
         sibMeta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
         
+		((Damageable) sibMeta).setDamage(bucketType);
+        
         bucketSlime.setItemMeta(sibMeta);
-		((Damageable) bucketSlime.getItemMeta()).setDamage(bucketType); // cast to Damageable, then set damage
 		
 		return bucketSlime;
+	}
+	
+	private int getDamageValue(ItemStack itStack)
+	{
+		return ((Damageable) itStack.getItemMeta()).getDamage();
+	}
+
+	private void setDamageValue(ItemStack itStack, int iVal)
+	{
+		ItemMeta itMeta = itStack.getItemMeta();
+		((Damageable) itMeta).setDamage(iVal);
+		itStack.setItemMeta(itMeta);
 	}
 }
